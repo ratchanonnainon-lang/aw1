@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>เกมเก็บดาวหลบอัศวินหุ่นยนต์</title>
+
+    <style>
+        /* ==============================
+           ส่วน CSS : ตกแต่งหน้าเกม
+           ============================== */
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(180deg, #24105f, #5b21b6, #9333ea);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .game-container {
+            width: 95%;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        /* หัวข้อเกม */
+        h1 {
+            margin: 5px 0 12px;
+            font-size: 30px;
+            text-shadow: 3px 3px #111827;
+        }
+
+        .subtitle {
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        /* แถบคะแนน */
+        .score-board {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .info-box {
+            flex: 1;
+            background: white;
+            color: #222;
+            padding: 10px;
+            border-radius: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        /* พื้นที่ Canvas */
+        canvas {
+            width: 100%;
+            max-width: 700px;
+            height: auto;
+            background: #071a3d;
+            border: 6px solid white;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            display: block;
+            margin: auto;
+        }
+
+        /* ปุ่มเริ่มเกม */
+        button {
+            margin-top: 14px;
+            padding: 12px 28px;
+            border: none;
+            border-radius: 25px;
+            background: #facc15;
+            color: #422006;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #ca8a04;
+        }
+
+        button:hover {
+            background: #fde047;
+        }
+
+        button:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #ca8a04;
+        }
+
+        /* คำแนะนำ */
+        .instruction {
+            margin-top: 12px;
+            background: rgba(255,255,255,0.15);
+            padding: 10px;
+            border-radius: 12px;
+            font-size: 15px;
+        }
+
+        /* หน้าจอ Game Over */
+        .game-over {
+            margin-top: 12px;
+            font-size: 22px;
+            font-weight: bold;
+            color: #fef08a;
+            min-height: 30px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="game-container">
+
+    <!-- ชื่อเกม -->
+    <h1>⭐ เกมเก็บดาวหลบอัศวินหุ่นยนต์ 🤖</h1>
+
+    <div class="subtitle">
+        ใช้ปุ่ม ⬅️ ➡️ เพื่อบังคับตัวละคร
+    </div>
+
+    <!-- แสดงคะแนนและพลังชีวิต -->
+    <div class="score-board">
+
+        <div class="info-box">
+            ⭐ คะแนน: <span id="score">0</span>
+        </div>
+
+        <div class="info-box">
+            ❤️ พลังชีวิต: <span id="lives">3</span>
+        </div>
+
+    </div>
+
+    <!-- พื้นที่สำหรับวาดเกม -->
+    <canvas id="gameCanvas" width="700" height="500"></canvas>
+
+    <!-- ปุ่มเริ่มเกม -->
+    <button id="startButton">เริ่มเกม 🎮</button>
+
+    <!-- คำแนะนำ -->
+    <div class="instruction">
+        ⭐ เก็บดาวเพื่อเพิ่มคะแนน +1<br>
+        💣 หลบระเบิด! ถ้าโดนจะเสียพลังชีวิต 1 ดวง
+    </div>
+
+    <!-- ข้อความ Game Over -->
+    <div class="game-over" id="gameMessage"></div>
+
+</div>
+
+
+<script>
+/* =========================================================
+   JavaScript : ส่วนควบคุมการทำงานของเกม
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   1. เตรียม Canvas
+   --------------------------------------------------------- */
+
+// ดึง Canvas จาก HTML
+const canvas = document.getElementById("gameCanvas");
+
+// ใช้ context 2D สำหรับวาดรูป
+const ctx = canvas.getContext("2d");
+
+
+/* ---------------------------------------------------------
+   2. ตัวแปรคะแนนและพลังชีวิต
+   --------------------------------------------------------- */
+
+let score = 0;       // คะแนนเริ่มต้น
+let lives = 3;       // พลังชีวิตเริ่มต้น
+let gameRunning = false;
+
+
+/* ---------------------------------------------------------
+   3. สร้างตัวละครผู้เล่น
+   --------------------------------------------------------- */
+
+const player = {
+    x: canvas.width / 2 - 25,
+    y: canvas.height - 65,
+    width: 50,
+    height: 45,
+    speed: 7
+};
+
+
+/* ---------------------------------------------------------
+   4. สร้างตัวแปรสำหรับดาวและระเบิด
+   --------------------------------------------------------- */
+
+let stars = [];
+let bombs = [];
+
+
+/* ---------------------------------------------------------
+   5. ตัวแปรสำหรับควบคุมปุ่มซ้าย-ขวา
+   --------------------------------------------------------- */
+
+let leftPressed = false;
+let rightPressed = false;
+
+
+/* ---------------------------------------------------------
+   6. รับคำสั่งจากคีย์บอร์ด
+   --------------------------------------------------------- */
+
+// เมื่อกดปุ่ม
+document.addEventListener("keydown", function(event) {
+
+    if (event.key === "ArrowLeft") {
+        leftPressed = true;
+    }
+
+    if (event.key === "ArrowRight") {
+        rightPressed = true;
+    }
+});
+
+
+// เมื่อปล่อยปุ่ม
+document.addEventListener("keyup", function(event) {
+
+    if (event.key === "ArrowLeft") {
+        leftPressed = false;
+    }
+
+    if (event.key === "ArrowRight") {
+        rightPressed = false;
+    }
+});
+
+
+/* ---------------------------------------------------------
+   7. ปุ่มเริ่มเกม
+   --------------------------------------------------------- */
+
+document.getElementById("startButton").addEventListener("click", startGame);
+
+
+/* ---------------------------------------------------------
+   8. ฟังก์ชันเริ่มเกม
+   --------------------------------------------------------- */
+
+function startGame() {
+
+    // รีเซ็ตคะแนน
+    score = 0;
+
+    // รีเซ็ตพลังชีวิต
+    lives = 3;
+
+    // รีเซ็ตตำแหน่งผู้เล่น
+    player.x = canvas.width / 2 - player.width / 2;
+
+    // ล้างดาวและระเบิดเก่าทั้งหมด
+    stars = [];
+    bombs = [];
+
+    // เปลี่ยนสถานะเป็นกำลังเล่น
+    gameRunning = true;
+
+    // ล้างข้อความ Game Over
+    document.getElementById("gameMessage").textContent = "";
+
+    // อัปเดตข้อมูลบนหน้าจอ
+    updateScore();
+
+    // เริ่มเกม
+    gameLoop();
+}
+
+
+/* ---------------------------------------------------------
+   9. ฟังก์ชันวาดพื้นหลัง
+   --------------------------------------------------------- */
+
+function drawBackground() {
+
+    // พื้นหลังสีเข้ม
+    ctx.fillStyle = "#071a3d";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // วาดดาวเล็ก ๆ บนท้องฟ้า
+    ctx.fillStyle = "#ffffff";
+
+    for (let i = 0; i < 50; i++) {
+
+        let x = (i * 97) % canvas.width;
+        let y = (i * 53) % canvas.height;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // วาดพื้นด้านล่าง
+    ctx.fillStyle = "#312e81";
+    ctx.fillRect(0, canvas.height - 25, canvas.width, 25);
+}
+
+
+/* ---------------------------------------------------------
+   10. ฟังก์ชันวาดตัวละคร
+   --------------------------------------------------------- */
+
+function drawPlayer() {
+
+    // ตัวหุ่นยนต์
+    ctx.fillStyle = "#22d3ee";
+
+    ctx.fillRect(
+        player.x,
+        player.y,
+        player.width,
+        player.height
+    );
+
+    // หัวหุ่นยนต์
+    ctx.fillStyle = "#67e8f9";
+
+    ctx.fillRect(
+        player.x + 5,
+        player.y - 18,
+        player.width - 10,
+        20
+    );
+
+    // ตาซ้าย
+    ctx.fillStyle = "#ef4444";
+
+    ctx.beginPath();
+    ctx.arc(
+        player.x + 17,
+        player.y - 8,
+        4,
+        0,
+        Math.PI * 2
+    );
+    ctx.fill();
+
+    // ตาขวา
+    ctx.beginPath();
+    ctx.arc(
+        player.x + 33,
+        player.y - 8,
+        4,
+        0,
+        Math.PI * 2
+    );
+    ctx.fill();
+
+    // แขนซ้าย
+    ctx.fillStyle = "#06b6d4";
+
+    ctx.fillRect(
+        player.x - 8,
+        player.y + 8,
+        8,
+        25
+    );
+
+    // แขนขวา
+    ctx.fillRect(
+        player.x + player.width,
+        player.y + 8,
+        8,
+        25
+    );
+}
+
+
+/* ---------------------------------------------------------
+   11. สร้างดาว
+   --------------------------------------------------------- */
+
+function createStar() {
+
+    stars.push({
+        x: Math.random() * (canvas.width - 30) + 15,
+        y: -20,
+        size: 14,
+        speed: 3 + Math.random() * 2
+    });
+}
+
+
+/* ---------------------------------------------------------
+   12. วาดดาว
+   --------------------------------------------------------- */
+
+function drawStar(star) {
+
+    ctx.fillStyle = "#facc15";
+
+    ctx.beginPath();
+
+    // วาดรูปดาวแบบง่าย
+    for (let i = 0; i < 10; i++) {
+
+        const angle = -Math.PI / 2 + i * Math.PI / 5;
+
+        const radius =
+            i % 2 === 0
+            ? star.size
+            : star.size / 2;
+
+        const x = star.x + Math.cos(angle) * radius;
+        const y = star.y + Math.sin(angle) * radius;
+
+        if (i === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    }
+
+    ctx.closePath();
+    ctx.fill();
+}
+
+
+/* ---------------------------------------------------------
+   13. สร้างระเบิด
+   --------------------------------------------------------- */
+
+function createBomb() {
+
+    bombs.push({
+        x: Math.random() * (canvas.width - 30) + 15,
+        y: -25,
+        size: 22,
+        speed: 3 + Math.random() * 2
+    });
+}
+
+
+/* ---------------------------------------------------------
+   14. วาดระเบิด
+   --------------------------------------------------------- */
+
+function drawBomb(bomb) {
+
+    // ตัวระเบิด
+    ctx.fillStyle = "#ef4444";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        bomb.x,
+        bomb.y,
+        bomb.size,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    // จุดสีดำบนระเบิด
+    ctx.fillStyle = "#111827";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        bomb.x - 7,
+        bomb.y - 5,
+        4,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.beginPath();
+
+    ctx.arc(
+        bomb.x + 7,
+        bomb.y + 5,
+        4,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    // ชนวน
+    ctx.strokeStyle = "#facc15";
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        bomb.x,
+        bomb.y - bomb.size
+    );
+
+    ctx.lineTo(
+        bomb.x + 8,
+        bomb.y - bomb.size - 10
+    );
+
+    ctx.stroke();
+}
+
+
+/* ---------------------------------------------------------
+   15. ตรวจสอบการชน
+   --------------------------------------------------------- */
+
+function collision(object) {
+
+    return (
+        object.x + object.size > player.x &&
+        object.x - object.size < player.x + player.width &&
+        object.y + object.size > player.y - 18 &&
+        object.y - object.size < player.y + player.height
+    );
+}
+
+
+/* ---------------------------------------------------------
+   16. อัปเดตตำแหน่งผู้เล่น
+   --------------------------------------------------------- */
+
+function updatePlayer() {
+
+    // เคลื่อนที่ไปทางซ้าย
+    if (leftPressed) {
+        player.x -= player.speed;
+    }
+
+    // เคลื่อนที่ไปทางขวา
+    if (rightPressed) {
+        player.x += player.speed;
+    }
+
+    // ไม่ให้ตัวละครออกนอกจอ
+    if (player.x < 10) {
+        player.x = 10;
+    }
+
+    if (player.x + player.width > canvas.width - 10) {
+        player.x = canvas.width - player.width - 10;
+    }
+}
+
+
+/* ---------------------------------------------------------
+   17. อัปเดตดาว
+   --------------------------------------------------------- */
+
+function updateStars() {
+
+    for (let i = stars.length - 1; i >= 0; i--) {
+
+        // ให้ดาวตกลงด้านล่าง
+        stars[i].y += stars[i].speed;
+
+        // ถ้าเก็บดาวได้
+        if (collision(stars[i])) {
+
+            score++;
+
+            // ลบดวงดาวที่เก็บแล้ว
+            stars.splice(i, 1);
+
+            // อัปเดตคะแนน
+            updateScore();
+
+            continue;
+        }
+
+        // ถ้าดาวตกถึงพื้นให้ลบออก
+        if (stars[i].y > canvas.height + 30) {
+            stars.splice(i, 1);
+        }
+    }
+}
+
+
+/* ---------------------------------------------------------
+   18. อัปเดตระเบิด
+   --------------------------------------------------------- */
+
+function updateBombs() {
+
+    for (let i = bombs.length - 1; i >= 0; i--) {
+
+        // ให้ระเบิดตกลงด้านล่าง
+        bombs[i].y += bombs[i].speed;
+
+        // ถ้าชนผู้เล่น
+        if (collision(bombs[i])) {
+
+            // ลดพลังชีวิต
+            lives--;
+
+            // ลบระเบิด
+            bombs.splice(i, 1);
+
+            // อัปเดตข้อมูล
+            updateScore();
+
+            // ตรวจสอบว่าเกมจบหรือยัง
+            if (lives <= 0) {
+                endGame();
+            }
+
+            continue;
+        }
+
+        // ถ้าระเบิดตกพ้นจอ
+        if (bombs[i].y > canvas.height + 40) {
+            bombs.splice(i, 1);
+        }
+    }
+}
+
+
+/* ---------------------------------------------------------
+   19. สร้างดาวและระเบิดเป็นระยะ
+   --------------------------------------------------------- */
+
+let frameCount = 0;
+
+function createObjects() {
+
+    frameCount++;
+
+    // ทุกประมาณ 60 เฟรม สร้างดาว
+    if (frameCount % 60 === 0) {
+        createStar();
+    }
+
+    // ทุกประมาณ 100 เฟรม สร้างระเบิด
+    if (frameCount % 100 === 0) {
+        createBomb();
+    }
+}
+
+
+/* ---------------------------------------------------------
+   20. อัปเดตคะแนนและพลังชีวิต
+   --------------------------------------------------------- */
+
+function updateScore() {
+
+    document.getElementById("score").textContent = score;
+
+    document.getElementById("lives").textContent = lives;
+}
+
+
+/* ---------------------------------------------------------
+   21. จบเกม
+   --------------------------------------------------------- */
+
+function endGame() {
+
+    gameRunning = false;
+
+    document.getElementById("gameMessage").textContent =
+        "💥 GAME OVER! คะแนนของคุณคือ " + score + " คะแนน";
+
+}
+
+
+/* ---------------------------------------------------------
+   22. ฟังก์ชันวาดทุกอย่างบน Canvas
+   --------------------------------------------------------- */
+
+function drawGame() {
+
+    // วาดพื้นหลัง
+    drawBackground();
+
+    // วาดดาวทั้งหมด
+    for (let star of stars) {
+        drawStar(star);
+    }
+
+    // วาดระเบิดทั้งหมด
+    for (let bomb of bombs) {
+        drawBomb(bomb);
+    }
+
+    // วาดผู้เล่น
+    drawPlayer();
+}
+
+
+/* ---------------------------------------------------------
+   23. Game Loop
+   --------------------------------------------------------- */
+
+function gameLoop() {
+
+    // ถ้าเกมจบแล้วให้หยุด
+    if (!gameRunning) {
+        drawGame();
+        return;
+    }
+
+    // อัปเดตการเคลื่อนที่
+    updatePlayer();
+
+    // สร้างไอเท็มและอุปสรรค
+    createObjects();
+
+    // อัปเดตดาว
+    updateStars();
+
+    // อัปเดตระเบิด
+    updateBombs();
+
+    // วาดเกม
+    drawGame();
+
+    // เรียกตัวเองซ้ำเพื่อให้เกมทำงานต่อเนื่อง
+    requestAnimationFrame(gameLoop);
+}
+
+
+/* ---------------------------------------------------------
+   24. แสดงเกมเริ่มต้นก่อนกดปุ่ม
+   --------------------------------------------------------- */
+
+drawBackground();
+drawPlayer();
+
+</script>
+
+</body>
+</html>
